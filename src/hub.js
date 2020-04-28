@@ -167,21 +167,23 @@ window.APP.RENDER_ORDER = {
   CURSOR: 3
 };
 
-// import any vendor files
-const requireModule = require.context("../vendor/", false, /\.js$/); // 
-const vendor = {};
-requireModule.keys().forEach(fileName => {
-  const exports = { ...requireModule(fileName).default };
-  const moduleName = fileName.replace(/(\.\/|\.js)/g, "");
-  if (moduleName === "index") {
-    Object.keys(exports).forEach((key) => {
-      vendor[key] = exports[key];
+try {
+    // import any vendor files
+    const requireModule = require.context("../vendor/", false, /\.js$/); // 
+    const vendor = {};
+    requireModule.keys().forEach(fileName => {
+      const exports = { ...requireModule(fileName).default };
+      const moduleName = fileName.replace(/(\.\/|\.js)/g, "");
+      if (moduleName === "index") {
+        Object.keys(exports).forEach((key) => {
+          vendor[key] = exports[key];
+        });
+      } else {
+        vendor[moduleName] = exports;    
+      };
     });
-  } else {
-    vendor[moduleName] = exports;    
-  };
-});
-window.vendor = vendor;
+    window.vendor = vendor;
+} catch (err) {}
 
 const store = window.APP.store;
 store.update({ preferences: { shouldPromptForRefresh: undefined } }); // Clear flag that prompts for refresh from preference screen

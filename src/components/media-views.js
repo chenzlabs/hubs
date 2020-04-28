@@ -653,7 +653,7 @@ AFRAME.registerComponent("media-video", {
     const projection = this.data.projection;
 
     if (!this.mesh || projection !== oldData.projection) {
-      const material = (vendor && vendor.customMediaVideoMaterial 
+      const material = (window.vendor && vendor.customMediaVideoMaterial 
         && vendor.customMediaVideoMaterial(this.data.vendor))
        || new THREE.MeshBasicMaterial();
 
@@ -679,7 +679,7 @@ AFRAME.registerComponent("media-video", {
     }
     // Update shader material with texture if required.
     if (this.data.vendor) {
-        vendor && vendor.updateMediaVideoMaterial 
+        window.vendor && vendor.updateMediaVideoMaterial 
          && vendor.updateMediaVideoMaterial(this, this.data.vendor);
     }
     this.mesh.material.needsUpdate = true;

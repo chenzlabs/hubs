@@ -417,7 +417,7 @@ export default class SceneEntryManager {
       const videoTracks = newStream ? newStream.getVideoTracks() : [];
 
       if (videoTracks.length > 0) {
-        let vendorMediaStream = vendor && vendor.prepareSharedVideoMediaStream
+        let vendorMediaStream = window.vendor && vendor.prepareSharedVideoMediaStream
          && await vendor.prepareSharedVideoMediaStream(mediaStream, newStream, isDisplayMedia);
         if (vendorMediaStream) {
           mediaStream = vendorMediaStream;
@@ -431,7 +431,7 @@ export default class SceneEntryManager {
 
         await NAF.connection.adapter.setLocalMediaStream(mediaStream);
         currentVideoShareEntity = spawnMediaInfrontOfPlayer(mediaStream, undefined);
-        if (vendor && vendor.prepareSharedVideoMediaEntity) {
+        if (window.vendor && vendor.prepareSharedVideoMediaEntity) {
           vendor.prepareSharedVideoMediaEntity(currentVideoShareEntity, mediaStream, isDisplayMedia);
         }
 
@@ -445,7 +445,7 @@ export default class SceneEntryManager {
     };
 
     this.scene.addEventListener("action_share_camera", () => {
-      if (vendor && vendor.prepareSharedCameraConstraints) {
+      if (window.vendor && vendor.prepareSharedCameraConstraints) {
         let constraints = vendor.prepareSharedCameraConstraints();
         shareVideoMediaStream(constraints);
       } else

@@ -40,6 +40,7 @@ function registerNetworkSchemas() {
         requiresNetworkUpdate: vectorRequiresUpdate(0.001)
       },
       "player-info",
+      "vendor-avatar",
       "networked-avatar",
       {
         selector: ".camera",
@@ -99,6 +100,7 @@ function registerNetworkSchemas() {
       },
       // TODO: Optimize checking mediaOptions with requiresNetworkUpdate.
       "media-loader",
+      "vendor-media",
       {
         component: "media-video",
         property: "vendor"
@@ -118,6 +120,7 @@ function registerNetworkSchemas() {
       "pinnable"
     ],
     nonAuthorizedComponents: [
+      "vendor-media",
       {
         component: "media-video",
         property: "vendor"

@@ -240,6 +240,7 @@ AFRAME.registerComponent("media-video", {
     src: { type: "string" },
     audioSrc: { type: "string" },
     contentType: { type: "string" },
+    vendor: { type: "string" },
     volume: { type: "number", default: 0.5 },
     loop: { type: "boolean", default: true },
     audioType: { type: "string", default: "pannernode" },
@@ -652,7 +653,9 @@ AFRAME.registerComponent("media-video", {
     const projection = this.data.projection;
 
     if (!this.mesh || projection !== oldData.projection) {
-      const material = new THREE.MeshBasicMaterial();
+      const material = (vendor && vendor.customMediaVideoMaterial 
+        && vendor.customMediaVideoMaterial(this.data.vendor))
+       || new THREE.MeshBasicMaterial();
 
       let geometry;
 
@@ -673,6 +676,11 @@ AFRAME.registerComponent("media-video", {
       this.mesh.material.map = audioIconTexture;
     } else {
       this.mesh.material.map = texture;
+    }
+    // Update shader material with texture if required.
+    if (this.data.vendor) {
+        vendor && vendor.updateMediaVideoMaterial 
+         && vendor.updateMediaVideoMaterial(this, this.data.vendor);
     }
     this.mesh.material.needsUpdate = true;
 

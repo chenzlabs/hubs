@@ -101,6 +101,10 @@ function registerNetworkSchemas() {
       "media-loader",
       {
         component: "media-video",
+        property: "vendor"
+      },
+      {
+        component: "media-video",
         property: "time"
       },
       {
@@ -114,6 +118,10 @@ function registerNetworkSchemas() {
       "pinnable"
     ],
     nonAuthorizedComponents: [
+      {
+        component: "media-video",
+        property: "vendor"
+      },
       {
         component: "media-video",
         property: "time"

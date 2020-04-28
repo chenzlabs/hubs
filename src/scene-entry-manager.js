@@ -417,6 +417,11 @@ export default class SceneEntryManager {
       const videoTracks = newStream ? newStream.getVideoTracks() : [];
 
       if (videoTracks.length > 0) {
+        let vendorMediaStream = vendor && vendor.prepareSharedVideoMediaStream
+         && await vendor.prepareSharedVideoMediaStream(mediaStream, newStream, isDisplayMedia);
+        if (vendorMediaStream) {
+          mediaStream = vendorMediaStream;
+        } else
         newStream.getVideoTracks().forEach(track => mediaStream.addTrack(track));
 
         if (newStream && newStream.getAudioTracks().length > 0) {
@@ -426,6 +431,9 @@ export default class SceneEntryManager {
 
         await NAF.connection.adapter.setLocalMediaStream(mediaStream);
         currentVideoShareEntity = spawnMediaInfrontOfPlayer(mediaStream, undefined);
+        if (vendor && vendor.prepareSharedVideoMediaEntity) {
+          vendor.prepareSharedVideoMediaEntity(currentVideoShareEntity, mediaStream, isDisplayMedia);
+        }
 
         // Wire up custom removal event which will stop the stream.
         currentVideoShareEntity.setAttribute("emit-scene-event-on-remove", "event:action_end_video_sharing");
@@ -437,6 +445,10 @@ export default class SceneEntryManager {
     };
 
     this.scene.addEventListener("action_share_camera", () => {
+      if (vendor && vendor.prepareSharedCameraConstraints) {
+        let constraints = vendor.prepareSharedCameraConstraints();
+        shareVideoMediaStream(constraints);
+      } else
       shareVideoMediaStream({
         video: {
           mediaSource: "camera",

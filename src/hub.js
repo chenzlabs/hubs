@@ -166,6 +166,23 @@ window.APP.RENDER_ORDER = {
   HUD_ICONS: 2,
   CURSOR: 3
 };
+
+// import any vendor files
+const requireModule = require.context("../vendor/", false, /\.js$/); // 
+const vendor = {};
+requireModule.keys().forEach(fileName => {
+  const exports = { ...requireModule(fileName).default };
+  const moduleName = fileName.replace(/(\.\/|\.js)/g, "");
+  if (moduleName === "index") {
+    Object.keys(exports).forEach((key) => {
+      vendor[key] = exports[key];
+    });
+  } else {
+    vendor[moduleName] = exports;    
+  };
+});
+window.vendor = vendor;
+
 const store = window.APP.store;
 store.update({ preferences: { shouldPromptForRefresh: undefined } }); // Clear flag that prompts for refresh from preference screen
 const mediaSearchStore = window.APP.mediaSearchStore;

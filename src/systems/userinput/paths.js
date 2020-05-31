@@ -121,6 +121,13 @@ paths.actions.inspectZoom = "/actions/inspectZoom";
 paths.actions.inspectPanY = "/actions/inspectPanY";
 paths.actions.resetInspectView = "/actions/resetInspectView";
 paths.actions.nextCameraMode = "/actions/nextCameraMode";
+paths.actions.spawnEmoji0 = "/actions/spawnEmoji0";
+paths.actions.spawnEmoji1 = "/actions/spawnEmoji1";
+paths.actions.spawnEmoji2 = "/actions/spawnEmoji2";
+paths.actions.spawnEmoji3 = "/actions/spawnEmoji3";
+paths.actions.spawnEmoji4 = "/actions/spawnEmoji4";
+paths.actions.spawnEmoji5 = "/actions/spawnEmoji5";
+paths.actions.spawnEmoji6 = "/actions/spawnEmoji6";
 paths.haptics = {};
 paths.haptics.actuators = {};
 paths.haptics.actuators.left = "/haptics/actuators/left";
@@ -351,3 +358,36 @@ paths.device.wmr.v = name => `/vars/wmr/${name}`;
 paths.device.wmr.k = name => `/vars/wmr/keyboard/${name}`;
 paths.device.wmr.left = wmrController("left");
 paths.device.wmr.right = wmrController("right");
+
+const webxr = "/device/webxr/";
+paths.device.webxr = {};
+paths.device.webxr.right = {
+  button: {
+    trigger: button(webxr, "right", "trigger"),
+    grip: button(webxr, "right", "grip"),
+    a: button(webxr, "right", "a"),
+    b: button(webxr, "right", "b"),
+    thumbStick: button(webxr, "right", "thumbStick")
+  },
+  axis: {
+    joyX: `${webxr}right/axis/joyX`,
+    joyY: `${webxr}right/axis/joyY`
+  },
+  pose: `${webxr}right/pose`,
+  matrix: `${webxr}right/matrix`
+};
+paths.device.webxr.left = {
+  button: {
+    trigger: button(webxr, "left", "trigger"),
+    grip: button(webxr, "left", "grip"),
+    a: button(webxr, "left", "a"),
+    b: button(webxr, "left", "b"),
+    thumbStick: button(webxr, "left", "thumbStick")
+  },
+  axis: {
+    joyX: `${webxr}left/axis/joyX`,
+    joyY: `${webxr}left/axis/joyY`
+  },
+  pose: `${webxr}left/pose`,
+  matrix: `${webxr}left/matrix`
+};

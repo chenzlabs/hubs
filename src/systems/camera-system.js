@@ -3,6 +3,8 @@ import { childMatch, setMatrixWorld, calculateViewingDistance } from "../utils/t
 import { paths } from "./userinput/paths";
 import { getBox } from "../utils/auto-box-collider";
 import qsTruthy from "../utils/qs_truthy";
+import { qsGet } from "../utils/qs_truthy";
+const customFOV = qsGet("fov");
 const enableThirdPersonMode = qsTruthy("thirdPerson");
 
 export function getInspectable(child) {
@@ -136,7 +138,7 @@ const ensureLightsAreSeenByCamera = function(o) {
 };
 const enableInspectLayer = function(o) {
   const batchManagerSystem = AFRAME.scenes[0].systems["hubs-systems"].batchManagerSystem;
-  const batch = batchManagerSystem.batchManager.batchForMesh.get(o);
+  const batch = batchManagerSystem.batchingEnabled && batchManagerSystem.batchManager.batchForMesh.get(o);
   if (batch) {
     batch.layers.enable(CAMERA_LAYER_INSPECT);
     o.layers.enable(CAMERA_LAYER_BATCH_INSPECT);
@@ -146,7 +148,7 @@ const enableInspectLayer = function(o) {
 };
 const disableInspectLayer = function(o) {
   const batchManagerSystem = AFRAME.scenes[0].systems["hubs-systems"].batchManagerSystem;
-  const batch = batchManagerSystem.batchManager.batchForMesh.get(o);
+  const batch = batchManagerSystem.batchingEnabled && batchManagerSystem.batchManager.batchForMesh.get(o);
   if (batch) {
     batch.layers.disable(CAMERA_LAYER_INSPECT);
     o.layers.disable(CAMERA_LAYER_BATCH_INSPECT);
@@ -167,12 +169,11 @@ function getAudio(o) {
 
 const FALLOFF = 0.9;
 export class CameraSystem {
-  constructor(batchManagerSystem) {
+  constructor(scene) {
     this.enableLights = localStorage.getItem("show-background-while-inspecting") === "true";
     this.verticalDelta = 0;
     this.horizontalDelta = 0;
     this.inspectZoom = 0;
-    this.batchManagerSystem = batchManagerSystem;
     this.mode = CAMERA_MODE_SCENE_PREVIEW;
     this.snapshot = { audioTransform: new THREE.Matrix4(), matrixWorld: new THREE.Matrix4() };
     this.audioListenerTargetTransform = new THREE.Matrix4();
@@ -188,6 +189,15 @@ export class CameraSystem {
       );
       bg.layers.set(CAMERA_LAYER_INSPECT);
       this.viewingRig.object3D.add(bg);
+      if (customFOV) {
+        if (this.viewingCamera.components.camera) {
+          this.viewingCamera.setAttribute("camera", { fov: customFOV });
+        } else {
+          scene.addEventListener("camera-set-active", () => {
+            this.viewingCamera.setAttribute("camera", { fov: customFOV });
+          });
+        }
+      }
     });
   }
 
@@ -201,11 +211,6 @@ export class CameraSystem {
     if (this.mode === CAMERA_MODE_SCENE_PREVIEW) return;
 
     this.mode = NEXT_MODES[this.mode] || 0;
-    if (this.mode === CAMERA_MODE_FIRST_PERSON) {
-      AFRAME.scenes[0].renderer.vr.setPoseTarget(this.avatarPOV.object3D);
-    } else if (this.mode === CAMERA_MODE_THIRD_PERSON_NEAR || this.mode === CAMERA_MODE_THIRD_PERSON_FAR) {
-      AFRAME.scenes[0].renderer.vr.setPoseTarget(this.viewingCamera.object3D);
-    }
   }
 
   inspect(o, distanceMod, temporarilyDisableRegularExit) {
@@ -235,12 +240,12 @@ export class CameraSystem {
       this.hideEverythingButThisObject(o);
     }
 
-    this.viewingCamera.object3D.updateMatrices();
+    this.viewingCamera.object3DMap.camera.updateMatrices();
     this.snapshot.matrixWorld.copy(this.viewingRig.object3D.matrixWorld);
 
     moveRigSoCameraLooksAtObject(
       this.viewingRig.object3D,
-      this.viewingCamera.object3D,
+      this.viewingCamera.object3DMap.camera,
       this.inspected,
       distanceMod || 1
     );
@@ -307,8 +312,37 @@ export class CameraSystem {
 
   tick = (function() {
     const translation = new THREE.Matrix4();
+    let uiRoot;
     return function tick(scene, dt) {
-      if (!this.enteredScene && scene.is("entered")) {
+      this.viewingCamera.object3DMap.camera.matrixNeedsUpdate = true;
+      this.viewingCamera.object3DMap.camera.updateMatrix();
+      this.viewingCamera.object3DMap.camera.updateMatrixWorld();
+
+      const entered = scene.is("entered");
+      uiRoot = uiRoot || document.getElementById("ui-root");
+      const isGhost = !entered && uiRoot && uiRoot.firstChild && uiRoot.firstChild.classList.contains("isGhost");
+      if (isGhost && this.mode !== CAMERA_MODE_FIRST_PERSON && this.mode !== CAMERA_MODE_INSPECT) {
+        this.mode = CAMERA_MODE_FIRST_PERSON;
+        const position = new THREE.Vector3();
+        const quat = new THREE.Quaternion();
+        const scale = new THREE.Vector3();
+        this.viewingRig.object3D.updateMatrices();
+        this.viewingRig.object3D.matrixWorld.decompose(position, quat, scale);
+        position.setFromMatrixPosition(this.viewingCamera.object3DMap.camera.matrixWorld);
+        position.y = position.y - 1.6;
+        setMatrixWorld(
+          this.avatarRig.object3D,
+          new THREE.Matrix4().compose(
+            position,
+            quat,
+            scale
+          )
+        );
+        scene.systems["hubs-systems"].characterController.fly = true;
+        this.avatarPOV.object3D.updateMatrices();
+        setMatrixWorld(this.avatarPOV.object3D, this.viewingCamera.object3DMap.camera.matrixWorld);
+      }
+      if (!this.enteredScene && entered) {
         this.enteredScene = true;
         this.mode = CAMERA_MODE_FIRST_PERSON;
       }
@@ -357,11 +391,11 @@ export class CameraSystem {
         this.avatarRig.object3D.updateMatrices();
         setMatrixWorld(this.viewingRig.object3D, this.avatarRig.object3D.matrixWorld);
         if (scene.is("vr-mode")) {
-          this.viewingCamera.object3D.updateMatrices();
-          setMatrixWorld(this.avatarPOV.object3D, this.viewingCamera.object3D.matrixWorld);
+          this.viewingCamera.object3DMap.camera.updateMatrices();
+          setMatrixWorld(this.avatarPOV.object3D, this.viewingCamera.object3DMap.camera.matrixWorld);
         } else {
           this.avatarPOV.object3D.updateMatrices();
-          setMatrixWorld(this.viewingCamera.object3D, this.avatarPOV.object3D.matrixWorld);
+          setMatrixWorld(this.viewingCamera.object3DMap.camera, this.avatarPOV.object3D.matrixWorld);
         }
       } else if (this.mode === CAMERA_MODE_THIRD_PERSON_NEAR || this.mode === CAMERA_MODE_THIRD_PERSON_FAR) {
         if (this.mode === CAMERA_MODE_THIRD_PERSON_NEAR) {
@@ -372,7 +406,7 @@ export class CameraSystem {
         this.avatarRig.object3D.updateMatrices();
         this.viewingRig.object3D.matrixWorld.copy(this.avatarRig.object3D.matrixWorld).multiply(translation);
         setMatrixWorld(this.viewingRig.object3D, this.viewingRig.object3D.matrixWorld);
-        this.avatarPOV.object3D.quaternion.copy(this.viewingCamera.object3D.quaternion);
+        this.avatarPOV.object3D.quaternion.copy(this.viewingCamera.object3DMap.camera.quaternion);
         this.avatarPOV.object3D.matrixNeedsUpdate = true;
       } else if (this.mode === CAMERA_MODE_INSPECT) {
         this.avatarPOVRotator.on = false;
@@ -400,7 +434,12 @@ export class CameraSystem {
         }
         const panY = this.userinput.get(paths.actions.inspectPanY) || 0;
         if (this.userinput.get(paths.actions.resetInspectView)) {
-          moveRigSoCameraLooksAtObject(this.viewingRig.object3D, this.viewingCamera.object3D, this.inspected, 1);
+          moveRigSoCameraLooksAtObject(
+            this.viewingRig.object3D,
+            this.viewingCamera.object3DMap.camera,
+            this.inspected,
+            1
+          );
         }
 
         if (
@@ -412,7 +451,7 @@ export class CameraSystem {
           orbit(
             this.inspected,
             this.viewingRig.object3D,
-            this.viewingCamera.object3D,
+            this.viewingCamera.object3DMap.camera,
             this.horizontalDelta,
             this.verticalDelta,
             this.inspectZoom,
@@ -423,16 +462,15 @@ export class CameraSystem {
       }
 
       if (scene.audioListener && this.avatarPOV) {
-        if (
-          (this.mode === CAMERA_MODE_FIRST_PERSON || this.mode === CAMERA_MODE_INSPECT) &&
-          scene.audioListener.parent !== this.avatarPOV.object3D
-        ) {
+        if (this.mode === CAMERA_MODE_INSPECT && scene.audioListener.parent !== this.avatarPOV.object3D) {
           this.avatarPOV.object3D.add(scene.audioListener);
         } else if (
-          (this.mode === CAMERA_MODE_THIRD_PERSON_NEAR || this.mode === CAMERA_MODE_THIRD_PERSON_FAR) &&
-          scene.audioListener.parent !== this.viewingCamera.object3D
+          (this.mode === CAMERA_MODE_FIRST_PERSON ||
+            this.mode === CAMERA_MODE_THIRD_PERSON_NEAR ||
+            this.mode === CAMERA_MODE_THIRD_PERSON_FAR) &&
+          scene.audioListener.parent !== this.viewingCamera.object3DMap.camera
         ) {
-          this.viewingCamera.object3D.add(scene.audioListener);
+          this.viewingCamera.object3DMap.camera.add(scene.audioListener);
         }
       }
     };

@@ -29,7 +29,6 @@
 <body>
     <a-scene
         loading-screen="enabled: false"
-        physics="debug: false; driver: ammo; debugDrawMode: 1; iterations: 4;"
         hubs-systems
         capture-system
         listed-media
@@ -42,8 +41,7 @@
             physicallyCorrectLights: true;
             alpha: false;
             webgl2: true;
-            multiview: false;
-            forceWebVR: true;"
+            multiview: false;"
         shadow="type: pcfsoft"
         networked-scene="adapter: janus; audio: true; debug: true; connectOnLoad: false;"
         mute-mic="eventSrc: a-scene; toggleEvents: action_mute"
@@ -190,8 +188,7 @@
 
                         <template data-name="Head">
                             <a-entity
-                                networked-audio-source="rolloffFactor: 2.0;"
-                                audio-source="type: avatar"
+                                avatar-audio-source="rolloffFactor: 2.0;"
                                 personal-space-invader="radius: 0.15; useMaterial: true;"
                                 bone-visibility
                                 body-helper="type: kinematic; collisionFilterGroup: 4; collisionFilterMask: 1;"
@@ -212,7 +209,7 @@
 
             <template id="static-media">
                 <a-entity
-                    body-helper="type: static; mass: 1; collisionFilterGroup: 1; collisionFilterMask: 11;"
+                    body-helper="type: static; mass: 1; collisionFilterGroup: 1; collisionFilterMask: 1;"
                 >
                 </a-entity>
             </template>
@@ -220,13 +217,24 @@
             <template id="static-controlled-media">
                 <a-entity
                     class="interactable"
-                    body-helper="type: static; mass: 1; collisionFilterGroup: 1; collisionFilterMask: 11;"
+                    body-helper="type: static; mass: 1; collisionFilterGroup: 1; collisionFilterMask: 1;"
                     is-remote-hover-target
                     position-at-box-shape-border__freeze="target:.freeze-menu;"
                     tags="isStatic: true; togglesHoveredActionSet: true; inspectable: true;"
                     listed-media
                 >
                     <a-entity class="freeze-menu" visibility-while-frozen="withinDistance: 100;">
+                        <a-entity mixin="rounded-text-button ui"
+                            is-remote-hover-target
+                            tags="singleActionButton: true; isHoverMenuChild: true;"
+                            local-refresh-media-button
+                            position="0 -0.6 0.001"
+                        >
+                            <a-entity text="value:refresh; width:1.75; align:center;"
+                                text-raycast-hack
+                                position="0 0 0.02">
+                            </a-entity>
+                        </a-entity>
                         <a-entity is-remote-hover-target tags="singleActionButton:true;" mixin="rounded-text-button" open-media-button="onlyOpenLink: true" position="0 -0.25 0.001">
                             <a-entity text="value:open link; width:1.75; align:center;" text-raycast-hack position="0 0 0.02"></a-entity>
                         </a-entity>
@@ -274,11 +282,11 @@
                     floaty-object="modifyGravityOnRelease: true; autoLockOnLoad: true;"
                     set-yxz-order
                     matrix-auto-update
-                    position-at-box-shape-border__freeze="target:.freeze-menu;"
-                    position-at-box-shape-border__freeze-unprivileged="target:.freeze-unprivileged-menu;"
                     hoverable-visuals
+                    position-at-border__freeze="target:.freeze-menu"
+                    position-at-border__freeze-unprivileged="target:.freeze-unprivileged-menu"
                     listed-media
-                    audio-source="type: media"
+                    use-audio-system-settings
                 >
                     <a-entity class="ui interactable-ui">
                         <a-entity class="freeze-menu" visibility-while-frozen="withinDistance: 100; withPermission: spawn_and_move_media">
@@ -393,6 +401,17 @@
                             <a-entity is-remote-hover-target tags="singleActionButton:true;" mixin="rounded-text-button" open-media-button="onlyOpenLink: true" position="0.43 -0.375 0.001">
                                 <a-entity text="value:open link; width:1.75; align:center;" text-raycast-hack position="0 0 0.02"></a-entity>
                             </a-entity>
+                            <a-entity mixin="rounded-text-button ui"
+                                is-remote-hover-target
+                                tags="singleActionButton: true; isHoverMenuChild: true;"
+                                local-refresh-media-button
+                                position="0.43 -0.6 0.001"
+                            >
+                                <a-entity text="value:refresh; width:1.75; align:center;"
+                                    text-raycast-hack
+                                    position="0 0 0.02">
+                                </a-entity>
+                            </a-entity>
                             <a-entity is-remote-hover-target tags="singleActionButton:true;" mixin="rounded-text-button" clone-media-button position="-0.43 -0.375 0.001">
                                 <a-entity text="value:clone; width:1.75; align:center;" text-raycast-hack position="0 0 0.02"></a-entity>
                             </a-entity>
@@ -441,6 +460,17 @@
                             </a-entity>
                         </a-entity>
                         <a-entity class="freeze-unprivileged-menu" visibility-while-frozen="withinDistance: 100; withoutPermission: spawn_and_move_media;">
+                            <a-entity mixin="rounded-text-button ui"
+                                is-remote-hover-target
+                                tags="singleActionButton: true; isHoverMenuChild: true;"
+                                local-refresh-media-button
+                                position="0 -0.6 0.001"
+                            >
+                                <a-entity text="value:refresh; width:1.75; align:center;"
+                                    text-raycast-hack
+                                    position="0 0 0.02">
+                                </a-entity>
+                            </a-entity>
                             <a-entity is-remote-hover-target tags="singleActionButton:true;" mixin="rounded-text-button" open-media-button="onlyOpenLink: true" position="0 -0.25 0.001">
                                 <a-entity text="value:open link; width:1.75; align:center;" text-raycast-hack position="0 0 0.02"></a-entity>
                             </a-entity>
@@ -476,7 +506,7 @@
                 </a-entity>
             </template>
 
-            <template id="interactable-emoji-media">
+            <template id="interactable-emoji">
                 <a-entity
                     class="interactable"
                     emoji
@@ -491,7 +521,7 @@
                     floaty-object="modifyGravityOnRelease: true; autoLockOnLoad: true;"
                     set-yxz-order
                     matrix-auto-update
-                    position-at-box-shape-border__freeze="target:.freeze-menu;"
+                    position-at-border__freeze="target:.freeze-menu;"
                     hoverable-visuals
                 >
                     <a-entity
@@ -549,7 +579,7 @@
                     matrix-auto-update
                     scale="0.5 0.5 0.5"
                     action-to-remove__pen="path: /actions/pen/remove;"
-                    position-at-box-shape-border="target:.pen-menu"
+                    position-at-border="target:.pen-menu"
                     set-yxz-order
                 >
                     <a-entity
@@ -584,7 +614,7 @@
                     owned-object-limiter="counter: #camera-counter"
                     set-unowned-body-kinematic
                     scalable-when-grabbed
-                    position-at-box-shape-border__freeze="target: .camera-menu"
+                    position-at-border="target:.camera-menu; isFlat: true"
                     set-yxz-order
                 >
                     <a-entity class="ui interactable-ui camera-snap-menu" visible-if-permitted="spawn_camera">
@@ -860,7 +890,9 @@
 
             <template id="link-hover-menu">
                 <a-entity class="ui interactable-ui hover-container" visible="false">
-                    <a-entity mixin="rounded-text-button ui" is-remote-hover-target tags="singleActionButton: true; isHoverMenuChild: true;" refresh-media-button position="0 0.125 0.001">
+                    <a-entity mixin="rounded-text-button ui"
+                    is-remote-hover-target tags="singleActionButton: true;
+                    isHoverMenuChild: true;" scale="0.8 0.8 0.8" refresh-media-button position="0 0.125 0.001">
                         <a-entity text="value:refresh; width:1.5; align:center;" text-raycast-hack position="0 0 0.02"></a-entity>
                     </a-entity>
                     <a-entity mixin="rounded-text-action-button ui" is-remote-hover-target tags="singleActionButton: true; isHoverMenuChild: true;" open-media-button position="0 -0.125 0.001">
@@ -1266,6 +1298,8 @@
                 pitch-yaw-rotator
                 matrix-auto-update>
             </a-entity>
+        </a-entity>
+        <a-entity id="scene-preview-node">
         </a-entity>
     </a-scene>
 

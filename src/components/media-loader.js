@@ -1,4 +1,4 @@
-import { getBox, getScaleCoefficient } from "../utils/auto-box-collider";
+import { computeObjectAABB, getBox, getScaleCoefficient } from "../utils/auto-box-collider";
 import {
   resolveUrl,
   getDefaultResolveQuality,
@@ -20,7 +20,7 @@ import qsTruthy from "../utils/qs_truthy";
 import loadingObjectSrc from "../assets/models/LoadingObject_Atom.glb";
 import { SOUND_MEDIA_LOADING, SOUND_MEDIA_LOADED } from "../systems/sound-effects-system";
 import { loadModel } from "./gltf-model-plus";
-import { cloneObject3D } from "../utils/three-utils";
+import { cloneObject3D, setMatrixWorld } from "../utils/three-utils";
 import { waitForDOMContentLoaded } from "../utils/async-utils";
 
 import { SHAPE } from "three-ammo/constants";
@@ -39,6 +39,7 @@ const fetchContentType = url => {
 };
 
 const forceMeshBatching = qsTruthy("batchMeshes");
+const forceImageBatching = qsTruthy("batchImages");
 const disableBatching = qsTruthy("disableBatching");
 
 AFRAME.registerComponent("media-loader", {
@@ -49,6 +50,7 @@ AFRAME.registerComponent("media-loader", {
     src: { type: "string" },
     version: { type: "number", default: 1 }, // Used to force a re-resolution
     fitToBox: { default: false },
+    moveTheParentNotTheMesh: { default: false },
     resolve: { default: false },
     contentType: { default: null },
     contentSubtype: { default: null },
@@ -84,15 +86,46 @@ AFRAME.registerComponent("media-loader", {
 
   updateScale: (function() {
     const center = new THREE.Vector3();
-    return function(fitToBox) {
+    const originalMeshMatrix = new THREE.Matrix4();
+    const desiredObjectMatrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const box = new THREE.Box3();
+    return function(fitToBox, moveTheParentNotTheMesh) {
+      this.el.object3D.updateMatrices();
       const mesh = this.el.getObject3D("mesh");
-      const box = getBox(this.el, mesh);
-      const scaleCoefficient = fitToBox ? getScaleCoefficient(0.5, box) : 1;
-      mesh.scale.multiplyScalar(scaleCoefficient);
-      const { min, max } = box;
-      center.addVectors(min, max).multiplyScalar(0.5 * scaleCoefficient);
-      mesh.position.sub(center);
-      mesh.matrixNeedsUpdate = true;
+      mesh.updateMatrices();
+      if (moveTheParentNotTheMesh) {
+        if (fitToBox) {
+          console.warn(
+            "Unexpected combination of inputs. Can fit the mesh to a box OR move the parent to the mesh, but did not expect to do both.",
+            this.el
+          );
+        }
+        // Keep the mesh exactly where it is, but move the parent transform such that it aligns with the center of the mesh's bounding box.
+        originalMeshMatrix.copy(mesh.matrixWorld);
+        computeObjectAABB(mesh, box);
+        center.addVectors(box.min, box.max).multiplyScalar(0.5);
+        this.el.object3D.matrixWorld.decompose(position, quaternion, scale);
+        desiredObjectMatrix.compose(
+          center,
+          quaternion,
+          scale
+        );
+        setMatrixWorld(this.el.object3D, desiredObjectMatrix);
+        mesh.updateMatrices();
+        setMatrixWorld(mesh, originalMeshMatrix);
+      } else {
+        // Move the mesh such that the center of its bounding box is in the same position as the parent matrix position
+        const box = getBox(this.el, mesh);
+        const scaleCoefficient = fitToBox ? getScaleCoefficient(0.5, box) : 1;
+        const { min, max } = box;
+        center.addVectors(min, max).multiplyScalar(0.5 * scaleCoefficient);
+        mesh.scale.multiplyScalar(scaleCoefficient);
+        mesh.position.sub(center);
+        mesh.matrixNeedsUpdate = true;
+      }
     };
   })(),
 
@@ -155,7 +188,7 @@ AFRAME.registerComponent("media-loader", {
       : new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial());
     this.el.setObject3D("mesh", mesh);
 
-    this.updateScale(true);
+    this.updateScale(true, false);
 
     if (useFancyLoader) {
       const environmentMapComponent = this.el.sceneEl.components["environment-map"];
@@ -270,7 +303,7 @@ AFRAME.registerComponent("media-loader", {
     if (this.data.animate) {
       if (!this.animating) {
         this.animating = true;
-        if (shouldUpdateScale) this.updateScale(this.data.fitToBox);
+        if (shouldUpdateScale) this.updateScale(this.data.fitToBox, this.data.moveTheParentNotTheMesh);
         const mesh = this.el.getObject3D("mesh");
         const scale = { x: 0.001, y: 0.001, z: 0.001 };
         scale.x = mesh.scale.x < scale.x ? mesh.scale.x * 0.001 : scale.x;
@@ -279,7 +312,7 @@ AFRAME.registerComponent("media-loader", {
         addMeshScaleAnimation(mesh, scale, finish);
       }
     } else {
-      if (shouldUpdateScale) this.updateScale(this.data.fitToBox);
+      if (shouldUpdateScale) this.updateScale(this.data.fitToBox, this.data.moveTheParentNotTheMesh);
       finish();
     }
   },
@@ -293,7 +326,7 @@ AFRAME.registerComponent("media-loader", {
     this.el.setAttribute("media-loader", { version: Math.floor(Date.now() / 1000) });
   },
 
-  async update(oldData) {
+  async update(oldData, forceLocalRefresh) {
     const { src, version, contentSubtype } = this.data;
     if (!src) return;
 
@@ -310,8 +343,16 @@ AFRAME.registerComponent("media-loader", {
       this.data.playSoundEffect = NAF.utils.isMine(this.networkedEl);
     }
 
+    if (forceLocalRefresh) {
+      this.el.removeAttribute("gltf-model-plus");
+      this.el.removeAttribute("media-pager");
+      this.el.removeAttribute("media-video");
+      this.el.removeAttribute("media-pdf");
+      this.el.removeAttribute("media-image");
+    }
+
     try {
-      if (srcChanged && !this.showLoaderTimeout) {
+      if ((forceLocalRefresh || srcChanged) && !this.showLoaderTimeout) {
         this.showLoaderTimeout = setTimeout(this.showLoader, 100);
       }
 
@@ -331,7 +372,7 @@ AFRAME.registerComponent("media-loader", {
       if (this.data.resolve && !src.startsWith("data:") && !src.startsWith("hubs:") && !isLocalModelAsset) {
         const is360 = !!(this.data.mediaOptions.projection && this.data.mediaOptions.projection.startsWith("360"));
         const quality = getDefaultResolveQuality(is360);
-        const result = await resolveUrl(src, quality, version);
+        const result = await resolveUrl(src, quality, version, forceLocalRefresh);
         canonicalUrl = result.origin;
 
         // handle protocol relative urls
@@ -355,8 +396,18 @@ AFRAME.registerComponent("media-loader", {
       // we don't think we can infer it from the extension, we need to make a HEAD request to find it out
       contentType = contentType || guessContentType(canonicalUrl) || (await fetchContentType(accessibleUrl));
 
+      // TODO we should probably just never return "application/octet-stream" as expectedContentType, since its not really useful
+      if (contentType === "application/octet-stream") {
+        contentType = guessContentType(canonicalUrl) || contentType;
+      }
+
+      // Some servers treat m3u8 playlists as "audio/x-mpegurl", we always want to treat them as HLS videos
+      if (contentType === "audio/x-mpegurl") {
+        contentType = "application/vnd.apple.mpegurl";
+      }
+
       // We don't want to emit media_resolved for index updates.
-      if (srcChanged) {
+      if (forceLocalRefresh || srcChanged) {
         this.el.emit("media_resolved", { src, raw: accessibleUrl, contentType });
       } else {
         this.el.emit("media_refreshed", { src, raw: accessibleUrl, contentType });
@@ -365,6 +416,7 @@ AFRAME.registerComponent("media-loader", {
       if (
         contentType.startsWith("video/") ||
         contentType.startsWith("audio/") ||
+        contentType.startsWith("application/dash") ||
         AFRAME.utils.material.isHLS(canonicalUrl, contentType)
       ) {
         let linkedVideoTexture, linkedAudioSource, linkedMediaElementAudioSource;
@@ -402,8 +454,11 @@ AFRAME.registerComponent("media-loader", {
             linkedMediaElementAudioSource
           })
         );
-        if (this.el.components["position-at-box-shape-border__freeze"]) {
-          this.el.setAttribute("position-at-box-shape-border__freeze", { dirs: ["forward", "back"] });
+        if (this.el.components["position-at-border__freeze"]) {
+          this.el.setAttribute("position-at-border__freeze", { isFlat: true });
+        }
+        if (this.el.components["position-at-border__freeze-unprivileged"]) {
+          this.el.setAttribute("position-at-border__freeze-unprivileged", { isFlat: true });
         }
       } else if (contentType.startsWith("image/")) {
         this.el.removeAttribute("gltf-model-plus");
@@ -418,14 +473,14 @@ AFRAME.registerComponent("media-loader", {
             if (contentSubtype === "photo-camera") {
               this.el.setAttribute("hover-menu__photo", {
                 template: "#photo-hover-menu",
-                dirs: ["forward", "back"]
+                isFlat: true
               });
             }
           },
           { once: true }
         );
         this.el.setAttribute("floaty-object", { reduceAngularFloat: true, releaseGravity: -1 });
-        let batch = !disableBatching;
+        let batch = !disableBatching && forceImageBatching;
         if (this.data.mediaOptions.hasOwnProperty("batch") && !this.data.mediaOptions.batch) {
           batch = false;
         }
@@ -439,8 +494,11 @@ AFRAME.registerComponent("media-loader", {
           })
         );
 
-        if (this.el.components["position-at-box-shape-border__freeze"]) {
-          this.el.setAttribute("position-at-box-shape-border__freeze", { dirs: ["forward", "back"] });
+        if (this.el.components["position-at-border__freeze"]) {
+          this.el.setAttribute("position-at-border__freeze", { isFlat: true });
+        }
+        if (this.el.components["position-at-border__freeze-unprivileged"]) {
+          this.el.setAttribute("position-at-border__freeze-unprivileged", { isFlat: true });
         }
       } else if (contentType.startsWith("application/pdf")) {
         this.el.removeAttribute("gltf-model-plus");
@@ -465,8 +523,11 @@ AFRAME.registerComponent("media-loader", {
           { once: true }
         );
 
-        if (this.el.components["position-at-box-shape-border__freeze"]) {
-          this.el.setAttribute("position-at-box-shape-border__freeze", { dirs: ["forward", "back"] });
+        if (this.el.components["position-at-border__freeze"]) {
+          this.el.setAttribute("position-at-border__freeze", { isFlat: true });
+        }
+        if (this.el.components["position-at-border__freeze-unprivileged"]) {
+          this.el.setAttribute("position-at-border__freeze-unprivileged", { isFlat: true });
         }
       } else if (
         contentType.includes("application/octet-stream") ||
@@ -486,9 +547,7 @@ AFRAME.registerComponent("media-loader", {
           { once: true }
         );
         this.el.addEventListener("model-error", this.onError, { once: true });
-        let batch =
-          !disableBatching &&
-          (forceMeshBatching || (AFRAME.utils.device.isMobile() && window.APP && window.APP.quality === "low"));
+        let batch = !disableBatching && forceMeshBatching;
         if (this.data.mediaOptions.hasOwnProperty("batch") && !this.data.mediaOptions.batch) {
           batch = false;
         }
@@ -515,22 +574,22 @@ AFRAME.registerComponent("media-loader", {
             if (await isLocalHubsAvatarUrl(src)) {
               this.el.setAttribute("hover-menu__hubs-item", {
                 template: "#avatar-link-hover-menu",
-                dirs: ["forward", "back"]
+                isFlat: true
               });
             } else if ((await isHubsRoomUrl(src)) || ((await isLocalHubsSceneUrl(src)) && mayChangeScene)) {
               this.el.setAttribute("hover-menu__hubs-item", {
                 template: "#hubs-destination-hover-menu",
-                dirs: ["forward", "back"]
+                isFlat: true
               });
             } else {
-              this.el.setAttribute("hover-menu__link", { template: "#link-hover-menu", dirs: ["forward", "back"] });
+              this.el.setAttribute("hover-menu__link", { template: "#link-hover-menu", isFlat: true });
             }
             this.onMediaLoaded(SHAPE.BOX);
           },
           { once: true }
         );
         this.el.setAttribute("floaty-object", { reduceAngularFloat: true, releaseGravity: -1 });
-        let batch = !disableBatching;
+        let batch = !disableBatching && forceImageBatching;
         if (this.data.mediaOptions.hasOwnProperty("batch") && !this.data.mediaOptions.batch) {
           batch = false;
         }
@@ -543,13 +602,22 @@ AFRAME.registerComponent("media-loader", {
             batch
           })
         );
-        if (this.el.components["position-at-box-shape-border__freeze"]) {
-          this.el.setAttribute("position-at-box-shape-border__freeze", { dirs: ["forward", "back"] });
+        if (this.el.components["position-at-border__freeze"]) {
+          this.el.setAttribute("position-at-border__freeze", { isFlat: true });
+        }
+        if (this.el.components["position-at-border__freeze-unprivileged"]) {
+          this.el.setAttribute("position-at-border__freeze-unprivileged", { isFlat: true });
         }
       } else {
         throw new Error(`Unsupported content type: ${contentType}`);
       }
     } catch (e) {
+      if (this.el.components["position-at-border__freeze"]) {
+        this.el.setAttribute("position-at-border__freeze", { isFlat: true });
+      }
+      if (this.el.components["position-at-border__freeze-unprivileged"]) {
+        this.el.setAttribute("position-at-border__freeze-unprivileged", { isFlat: true });
+      }
       console.error("Error adding media", e);
       this.onError();
     }
@@ -568,7 +636,7 @@ AFRAME.registerComponent("media-pager", {
     this.onSnap = this.onSnap.bind(this);
     this.update = this.update.bind(this);
 
-    this.el.setAttribute("hover-menu__pager", { template: "#pager-hover-menu", dirs: ["forward", "back"] });
+    this.el.setAttribute("hover-menu__pager", { template: "#pager-hover-menu", isFlat: true });
     this.el.components["hover-menu__pager"].getHoverMenu().then(menu => {
       // If we got removed while waiting, do nothing.
       if (!this.el.parentNode) return;

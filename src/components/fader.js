@@ -14,9 +14,10 @@ AFRAME.registerComponent("fader", {
       new THREE.BoxGeometry(),
       new THREE.MeshBasicMaterial({ color: 0x0, side: THREE.BackSide, opacity: 0, transparent: true, fog: false })
     );
-    mesh.scale.x = mesh.scale.y = mesh.scale.z = 0.16;
+    mesh.scale.x = mesh.scale.y = 1;
+    mesh.scale.z = 0.15;
     mesh.matrixNeedsUpdate = true;
-    this.el.object3D.add(mesh);
+    this.el.object3DMap.camera.add(mesh);
     this.mesh = mesh;
   },
 

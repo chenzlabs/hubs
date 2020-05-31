@@ -41,15 +41,28 @@ AFRAME.registerComponent("avatar-volume-controls", {
     this.changeVolumeBy(-1 * step);
   },
 
-  update() {
-    if (this.audio) {
-      const globalVoiceVolume =
-        window.APP.store.state.preferences.globalVoiceVolume !== undefined
-          ? window.APP.store.state.preferences.globalVoiceVolume
-          : 100;
-      this.audio.gain.gain.value = (globalVoiceVolume / 100) * this.data.volume;
-    }
-  },
+  update: (function() {
+    const positionA = new THREE.Vector3();
+    const positionB = new THREE.Vector3();
+    return function update() {
+      const audio = this.avatarAudioSource && this.avatarAudioSource.el.getObject3D(this.avatarAudioSource.attrName);
+      if (!audio) {
+        return;
+      }
+
+      const { audioOutputMode, globalVoiceVolume } = window.APP.store.state.preferences;
+      const volumeModifier = (globalVoiceVolume !== undefined ? globalVoiceVolume : 100) / 100;
+      let gain = volumeModifier * this.data.volume;
+      if (audioOutputMode === "audio") {
+        this.avatarAudioSource.el.object3D.getWorldPosition(positionA);
+        this.el.sceneEl.camera.getWorldPosition(positionB);
+        const squaredDistance = positionA.distanceToSquared(positionB);
+        gain = gain * Math.min(1, 10 / Math.max(1, squaredDistance));
+      }
+
+      audio.gain.gain.value = gain;
+    };
+  })(),
 
   updateVolumeLabel() {
     const numBars = Math.min(
@@ -62,13 +75,16 @@ AFRAME.registerComponent("avatar-volume-controls", {
   },
 
   tick() {
-    if (this.audio) return;
+    if (!this.avatarAudioSource && !this.searchFailed) {
+      // Walk up to Spine and then search down.
+      const sourceEl = this.el.parentNode.parentNode.querySelector("[avatar-audio-source]");
+      if (!sourceEl || !sourceEl.components["avatar-audio-source"]) {
+        this.searchFailed = true;
+        return;
+      }
+      this.avatarAudioSource = sourceEl.components["avatar-audio-source"];
+    }
 
-    // Walk up to Spine and then search down.
-    const source = this.el.parentNode.parentNode.querySelector("[networked-audio-source]");
-    if (!source) return;
-
-    this.audio = source.components["networked-audio-source"].sound;
     this.update();
   }
 });

@@ -50,14 +50,6 @@ export default class PreferencesScreen extends Component {
     const general = [
       { key: "muteMicOnEntry", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
       { key: "onlyShowNametagsInFreeze", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
-      { key: "allowMultipleHubsInstances", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
-      { key: "maxResolution", prefType: PREFERENCE_LIST_ITEM_TYPE.MAX_RESOLUTION },
-      {
-        key: "materialQualitySetting",
-        prefType: PREFERENCE_LIST_ITEM_TYPE.SELECT,
-        options: [{ value: "low", text: "Low" }, { value: "high", text: "High" }],
-        defaultString: isMobile ? "low" : "high"
-      },
       {
         key: "globalVoiceVolume",
         prefType: PREFERENCE_LIST_ITEM_TYPE.NUMBER_WITH_RANGE,
@@ -72,6 +64,7 @@ export default class PreferencesScreen extends Component {
         max: 200,
         defaultNumber: 100
       },
+      { key: "disableSoundEffects", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
       {
         key: "snapRotationDegrees",
         prefType: PREFERENCE_LIST_ITEM_TYPE.NUMBER_WITH_RANGE,
@@ -82,12 +75,36 @@ export default class PreferencesScreen extends Component {
       { key: "disableMovement", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
       { key: "disableBackwardsMovement", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
       { key: "disableStrafing", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
-      { key: "disableTeleporter", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false }
+      { key: "disableTeleporter", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      {
+        key: "movementSpeedModifier",
+        prefType: PREFERENCE_LIST_ITEM_TYPE.NUMBER_WITH_RANGE,
+        min: 0,
+        max: 2,
+        defaultNumber: 1
+      }
     ].map(preferenceListItem);
 
     const touchscreen = [
       { key: "enableOnScreenJoystickLeft", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
       { key: "enableOnScreenJoystickRight", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false }
+    ].map(preferenceListItem);
+
+    const advanced = [
+      { key: "maxResolution", prefType: PREFERENCE_LIST_ITEM_TYPE.MAX_RESOLUTION },
+      {
+        key: "materialQualitySetting",
+        prefType: PREFERENCE_LIST_ITEM_TYPE.SELECT,
+        options: [{ value: "low", text: "Low" }, { value: "high", text: "High" }],
+        defaultString: isMobile ? "low" : "high"
+      },
+      { key: "disableAutoPixelRatio", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      { key: "allowMultipleHubsInstances", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      { key: "disableIdleDetection", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      { key: "preferMobileObjectInfoPanel", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      { key: "disableEchoCancellation", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      { key: "disableNoiseSuppression", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false },
+      { key: "disableAutoGainControl", prefType: PREFERENCE_LIST_ITEM_TYPE.CHECK_BOX, defaultBool: false }
     ].map(preferenceListItem);
 
     return (
@@ -113,6 +130,12 @@ export default class PreferencesScreen extends Component {
                 </div>
               </div>
               <div className={classNames(styles.scrollingContent)}>{touchscreen}</div>
+              <div className={classNames(styles.sectionBar)}>
+                <div className={classNames(styles.sectionTitle)}>
+                  <span>Advanced</span>
+                </div>
+              </div>
+              <div className={classNames(styles.scrollingContent)}>{advanced}</div>
             </div>
           </div>
         </div>

@@ -24,7 +24,7 @@ AFRAME.registerComponent("visibility-while-frozen", {
     this.objWorldPos = new THREE.Vector3();
 
     waitForDOMContentLoaded().then(() => {
-      this.cam = document.getElementById("avatar-pov-node").object3D;
+      this.cameraEl = document.getElementById("viewing-camera");
       this.updateVisibility();
     });
 
@@ -68,7 +68,7 @@ AFRAME.registerComponent("visibility-while-frozen", {
   },
 
   updateVisibility() {
-    if (!this.cam) return;
+    if (!this.cameraEl) return;
     const isFrozen = this.el.sceneEl.is("frozen");
 
     let isWithinDistance = true;
@@ -81,7 +81,7 @@ AFRAME.registerComponent("visibility-while-frozen", {
         this.el.object3D.updateMatrices(true, true);
       }
 
-      getLastWorldPosition(this.cam, this.camWorldPos);
+      getLastWorldPosition(this.cameraEl.object3DMap.camera, this.camWorldPos);
       this.objWorldPos.copy(this.el.object3D.position);
       this.el.object3D.localToWorld(this.objWorldPos);
 
@@ -90,6 +90,7 @@ AFRAME.registerComponent("visibility-while-frozen", {
     }
 
     const isTransforming = this.el.sceneEl.systems["transform-selected-object"].transforming;
+    const isHoldingAnything = this.el.sceneEl.systems.interaction.isHoldingAnything();
 
     if (this.data.withPermission && this.data.withoutPermission) {
       throw new Error(
@@ -99,15 +100,20 @@ AFRAME.registerComponent("visibility-while-frozen", {
 
     const allowed = !!(
       (!this.data.withPermission && !this.data.withoutPermission) ||
-      (this.data.withPermission && window.APP.hubChannel.canOrWillIfCreator(this.data.withPermission)) ||
-      (this.data.withoutPermission && !window.APP.hubChannel.canOrWillIfCreator(this.data.withoutPermission))
+      (this.data.withPermission &&
+        window.APP.hubChannel &&
+        window.APP.hubChannel.canOrWillIfCreator(this.data.withPermission)) ||
+      (this.data.withoutPermission &&
+        window.APP.hubChannel &&
+        !window.APP.hubChannel.canOrWillIfCreator(this.data.withoutPermission))
     );
 
     let shouldBeVisible =
       allowed &&
       ((isFrozen && this.data.visible) || (!isFrozen && !this.data.visible)) &&
       isWithinDistance &&
-      !isTransforming;
+      !isTransforming &&
+      !isHoldingAnything;
 
     if (this.data.requireHoverOnNonMobile && !isMobile) {
       shouldBeVisible =

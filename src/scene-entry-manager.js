@@ -25,10 +25,9 @@ import { SOUND_ENTER_SCENE } from "./systems/sound-effects-system";
 const isIOS = AFRAME.utils.device.isIOS();
 
 export default class SceneEntryManager {
-  constructor(hubChannel, authChannel, availableVREntryTypes, history) {
+  constructor(hubChannel, authChannel, history) {
     this.hubChannel = hubChannel;
     this.authChannel = authChannel;
-    this.availableVREntryTypes = availableVREntryTypes;
     this.store = window.APP.store;
     this.mediaSearchStore = window.APP.mediaSearchStore;
     this.scene = document.querySelector("a-scene");
@@ -53,8 +52,6 @@ export default class SceneEntryManager {
 
   enterScene = async (mediaStream, enterInVR, muteOnEntry) => {
     document.getElementById("viewing-camera").removeAttribute("scene-preview-camera");
-    const waypointSystem = this.scene.systems["hubs-systems"].waypointSystem;
-    waypointSystem.moveToSpawnPoint();
 
     if (isDebug) {
       NAF.connection.adapter.session.options.verbose = true;
@@ -67,10 +64,13 @@ export default class SceneEntryManager {
 
       // HACK - A-Frame calls getVRDisplays at module load, we want to do it here to
       // force gamepads to become live.
-      navigator.getVRDisplays();
+      "getVRDisplays" in navigator && navigator.getVRDisplays();
 
       await exit2DInterstitialAndEnterVR(true);
     }
+
+    const waypointSystem = this.scene.systems["hubs-systems"].waypointSystem;
+    waypointSystem.moveToSpawnPoint();
 
     if (isMobile || forceEnableTouchscreen || qsTruthy("mobile")) {
       this.avatarRig.setAttribute("virtual-gamepad-controls", {});
@@ -91,6 +91,7 @@ export default class SceneEntryManager {
     if (isBotMode) {
       this._runBot(mediaStream);
       this.scene.addState("entered");
+      this.hubChannel.sendEnteredEvent();
       return;
     }
 
@@ -107,7 +108,7 @@ export default class SceneEntryManager {
 
     // Delay sending entry event telemetry until VR display is presenting.
     (async () => {
-      while (enterInVR && !(await navigator.getVRDisplays()).find(d => d.isPresenting)) {
+      while (enterInVR && !this.scene.renderer.vr.isPresenting()) {
         await nextTick();
       }
 
@@ -417,6 +418,12 @@ export default class SceneEntryManager {
 
       if (videoTracks.length > 0) {
         newStream.getVideoTracks().forEach(track => mediaStream.addTrack(track));
+
+        if (newStream && newStream.getAudioTracks().length > 0) {
+          const audioSystem = this.scene.systems["hubs-systems"].audioSystem;
+          audioSystem.addStreamToOutboundAudio("screenshare", newStream);
+        }
+
         await NAF.connection.adapter.setLocalMediaStream(mediaStream);
         currentVideoShareEntity = spawnMediaInfrontOfPlayer(mediaStream, undefined);
 
@@ -436,6 +443,7 @@ export default class SceneEntryManager {
           width: isIOS ? { max: 1280 } : { max: 1280, ideal: 720 },
           frameRate: 30
         }
+        //TODO: Capture audio from camera?
       });
     });
 
@@ -449,7 +457,11 @@ export default class SceneEntryManager {
             height: 720,
             frameRate: 30
           },
-          audio: true
+          audio: {
+            echoCancellation: window.APP.store.state.preferences.disableEchoCancellation === true ? false : true,
+            noiseSuppression: window.APP.store.state.preferences.disableNoiseSuppression === true ? false : true,
+            autoGainControl: window.APP.store.state.preferences.disableAutoGainControl === true ? false : true
+          }
         },
         true
       );
@@ -467,6 +479,9 @@ export default class SceneEntryManager {
       for (const track of mediaStream.getVideoTracks()) {
         mediaStream.removeTrack(track);
       }
+
+      const audioSystem = this.scene.systems["hubs-systems"].audioSystem;
+      audioSystem.removeStreamFromOutboundAudio("screenshare");
 
       await NAF.connection.adapter.setLocalMediaStream(mediaStream);
       currentVideoShareEntity = null;
